@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>M-Pesa Flow | Expense Analyzer</title>
+  <!-- Tailwind + Font Awesome + Chart.js + PapaParse -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    /* custom smoothness & glassmorphism touches */
+    body {
+      background: #f4f7fc;
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif;
+    }
+    .glass-card {
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(2px);
+      border-radius: 2rem;
+      box-shadow: 0 20px 35px -12px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0,0,0,0.02);
+      transition: all 0.2s ease;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #00B4AA 0%, #2C7A6E 100%);
+      transition: all 0.2s;
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 20px -12px #00B4AA80;
+    }
+    .stat-number {
+      font-feature-settings: "tnum";
+      font-variant-numeric: tabular-nums;
+    }
+    .upload-zone {
+      border: 2px dashed #cbd5e1;
+      transition: 0.2s;
+    }
+    .upload-zone:hover {
+      border-color: #00B4AA;
+      background: #f0fdfa;
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #eef2f5;
+      border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #b9c8d4;
+      border-radius: 10px;
+    }
+  </style>
+</head>
+<body class="antialiased">
+
+  <main class="max-w-7xl mx-auto px-4 py-6 md:py-10">
+    <!-- header branding -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+      <div>
+        <div class="flex items-center gap-3">
+          <i class="fas fa-chart-line text-3xl text-teal-600"></i>
+          <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-gray-800">M-Pesa <span class="text-teal-700">Flow</span></h1>
+        </div>
+        <p class="text-gray-500 text-sm mt-1">Smart spending analyzer · Categorize · Budget smarter</p>
+      </div>
+      <div class="flex flex-wrap gap-3">
+        <button id="downloadSampleBtn" class="bg-white border border-teal-200 text-teal-700 px-4 py-2 rounded-2xl text-sm font-medium shadow-sm hover:bg-teal-50 transition flex items-center gap-2">
+          <i class="fas fa-download"></i> Sample CSV
+        </button>
+      </div>
+    </div>
+
+    <!-- upload zone + quick stats row -->
+    <div class="grid lg:grid-cols-3 gap-6 mb-8">
+      <div class="lg:col-span-1">
+        <div class="glass-card p-6 h-full">
+          <div class="flex items-center gap-2 text-gray-700 mb-3">
+            <i class="fas fa-upload text-teal-600"></i>
+            <h2 class="font-semibold text-lg">Upload statement</h2>
+          </div>
+          <label for="csvUpload" class="upload-zone flex flex-col items-center justify-center w-full p-6 rounded-2xl bg-white/70 cursor-pointer border-2 border-dashed border-gray-300 hover:border-teal-400 transition">
+            <i class="fas fa-file-csv text-3xl text-teal-500 mb-2"></i>
+            <span class="text-sm font-medium text-gray-600">Click or drag M-Pesa CSV</span>
+            <span class="text-xs text-gray-400 mt-1">.csv format (Date, Description, Debit, Credit, Balance)</span>
+            <input type="file" id="csvUpload" accept=".csv" class="hidden" />
+          </label>
+          <div class="mt-4 text-xs text-gray-400 flex justify-between items-center">
+            <span><i class="far fa-lightbulb"></i> Auto-categorizes food, transport, bills</span>
+            <button id="loadDemoBtn" class="text-teal-600 text-xs font-medium underline underline-offset-2">📱 Load demo data</button>
+          </div>
+          <div id="uploadStatus" class="mt-3 text-xs text-center text-gray-500"></div>
+        </div>
+      </div>
+
+      <!-- 3 stat cards -->
+      <div class="lg:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="glass-card p-5">
+          <div class="text-gray-500 text-sm">💰 Total spent</div>
+          <div class="text-2xl font-bold text-gray-800 stat-number" id="totalSpent">KES 0</div>
+          <div class="text-xs text-gray-400 mt-1">all time outgoing</div>
+        </div>
+        <div class="glass-card p-5">
+          <div class="text-gray-500 text-sm">🍽️ Top category</div>
+          <div class="text-2xl font-bold text-gray-800" id="topCategory">—</div>
+          <div class="text-xs text-gray-400 mt-1">by spending amount</div>
+        </div>
+        <div class="glass-card p-5">
+          <div class="text-gray-500 text-sm">📆 Months tracked</div>
+          <div class="text-2xl font-bold text-gray-800 stat-number" id="monthsCount">0</div>
+          <div class="text-xs text-gray-400 mt-1">insights ready</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Monthly insights + category pie + budget suggestions -->
+    <div class="grid lg:grid-cols-5 gap-6 mb-8">
+      <!-- Monthly table (insights) -->
+      <div class="lg:col-span-3 glass-card p-5">
+        <div class="flex items-center justify-between flex-wrap gap-2 mb-4">
+          <h2 class="font-bold text-gray-800 flex items-center gap-2"><i class="fas fa-calendar-alt text-teal-600"></i> Monthly insights</h2>
+          <div class="text-xs bg-gray-100 px-3 py-1 rounded-full text-gray-600">Food · Transport · Bills</div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-sm">
+            <thead class="bg-gray-50 rounded-xl">
+              <tr class="text-gray-600 border-b">
+                <th class="py-3 text-left font-semibold">Month</th>
+                <th class="py-3 text-right font-semibold">🍔 Food</th>
+                <th class="py-3 text-right font-semibold">🚗 Transport</th>
+                <th class="py-3 text-right font-semibold">⚡ Bills</th>
+                <th class="py-3 text-right font-semibold">📦 Other</th>
+                <th class="py-3 text-right font-semibold">Total</th>
+              </tr>
+            </thead>
+            <tbody id="monthlyTableBody">
+              <tr><td colspan="6" class="text-center py-6 text-gray-400">Upload CSV or load demo</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Right side: pie chart + month picker + budget suggestions -->
+      <div class="lg:col-span-2 space-y-6">
+        <div class="glass-card p-5">
+          <div class="flex justify-between items-center flex-wrap gap-2 mb-3">
+            <h2 class="font-bold text-gray-800"><i class="fas fa-chart-pie text-teal-600"></i> Category breakdown</h2>
+            <select id="monthSelect" class="text-sm border border-gray-200 rounded-xl px-3 py-1.5 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-300">
+              <option value="">Select month</option>
+            </select>
+          </div>
+          <canvas id="categoryPieChart" height="180" class="w-full max-h-56"></canvas>
+          <div class="mt-2 text-center text-xs text-gray-400">spending by category (selected month)</div>
+        </div>
+        <div class="glass-card p-5">
+          <h2 class="font-bold text-gray-800 flex items-center gap-2 mb-3"><i class="fas fa-lightbulb text-amber-500"></i> Budget suggestions</h2>
+          <div id="budgetSuggestionsContainer" class="space-y-3 text-sm">
+            <div class="text-gray-400 italic text-center py-3">Insights will appear after data load</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- transaction log (categorized) -->
+    <div class="glass-card p-5">
+      <div class="flex justify-between items-center mb-3 flex-wrap gap-2">
+        <h2 class="font-bold text-gray-800"><i class="fas fa-receipt text-teal-600"></i> Categorized transactions</h2>
+        <span class="text-xs text-gray-400 bg-gray-100 px-3 py-1 rounded-full">Auto-categorized spending</span>
+      </div>
+      <div class="overflow-x-auto max-h-72 overflow-y-auto">
+        <table class="min-w-full text-sm">
+          <thead class="sticky top-0 bg-white shadow-sm">
+            <tr class="border-b text-gray-500">
+              <th class="py-2 text-left">Date</th>
+              <th class="py-2 text-left">Description</th>
+              <th class="py-2 text-right">Amount (KES)</th>
+              <th class="py-2 text-left">Category</th>
+            </tr>
+          </thead>
+          <tbody id="transactionsTableBody"></tbody>
+        </table>
+      </div>
+      <div id="emptyTransactionMsg" class="text-center text-gray-400 text-sm py-4 hidden">No spending transactions yet</div>
+    </div>
+  </main>
+
+  <script>
+    // ---------- GLOBALS ----------
+    let rawTransactions = [];       // { date, description, amount, category }
+    let monthlyAggregateMap = new Map(); // monthKey => { food, transport, bills, other, total }
+    let allMonthsList = [];
+    let pieChart = null;
+    let currentSelectedMonth = "";
+
+    // categories definition with keywords
+    const CATEGORY_RULES = {
+      food: ["food", "groceries", "supermarket", "restaurant", "kfc", "pizza", "lunch", "dinner", "cafe", "starbucks", "burger", "meal", "grocery", "mcdonald", "subway", "carrefour", "naivas", "quickmart"],
+      transport: ["uber", "taxi", "bolt", "fuel", "petrol", "diesel", "bus", "matatu", "train", "boda", "bajaj", "lyft", "parking", "toll", "gas station", "shell", "totalenergies"],
+      bills: ["electricity", "water", "internet", "wifi", "cable tv", "rent", "mortgage", "loan", "insurance", "phone bill", "safaricom", "airtel", "token", "prepaid", "postpaid", "netflix", "spotify", "dStv", "iCloud", "utilities"]
+    };
+    const OTHER_CAT = "other";
+
+    function categorizeTransaction(desc) {
+      if (!desc) return OTHER_CAT;
+      const lowerDesc = desc.toLowerCase();
+      for (let [cat, keywords] of Object.entries(CATEGORY_RULES)) {
+        for (let kw of keywords) {
+          if (lowerDesc.includes(kw)) return cat;
+        }
+      }
+      return OTHER_CAT;
+    }
+
+    // helper: format KES
+    function formatKES(amount) {
+      return `KES ${amount.toLocaleString('en-KE')}`;
+    }
+
+    // Process transactions array, compute aggregates & update UI
+    function processAndRender(transactions) {
+      rawTransactions = transactions;
+      if (!rawTransactions.length) {
+        // reset UI
+        document.getElementById("totalSpent").innerText = "KES 0";
+        document.getElementById("topCategory").innerText = "—";
+        document.getElementById("monthsCount").innerText = "0";
+        document.getElementById("monthlyTableBody").innerHTML = `<tr><td colspan="6" class="text-center py-6 text-gray-400">No spending data</td></tr>`;
+        document.getElementById("transactionsTableBody").innerHTML = '';
+        document.getElementById("emptyTransactionMsg").classList.remove("hidden");
+        if (pieChart) { pieChart.destroy(); pieChart = null; }
+        document.getElementById("monthSelect").innerHTML = '<option value="">Select month</option>';
+        document.getElementById("budgetSuggestionsContainer").innerHTML = '<div class="text-gray-400 italic text-center py-3">Upload a statement to get insights</div>';
+        return;
+      }
+
+      // group by month (YYYY-MM)
+      monthlyAggregateMap.clear();
+      let totalSpentOverall = 0;
+      let categoryTotalsOverall = { food: 0, transport: 0, bills: 0, other: 0 };
+
+      for (let t of rawTransactions) {
+        if (t.amount <= 0) continue; // safety
+        totalSpentOverall += t.amount;
+        categoryTotalsOverall[t.category] = (categoryTotalsOverall[t.category] || 0) + t.amount;
+
+        const dateObj = new Date(t.date);
+        if (isNaN(dateObj)) continue;
+        const monthKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
+        if (!monthlyAggregateMap.has(monthKey)) {
+          monthlyAggregateMap.set(monthKey, { food: 0, transport: 0, bills: 0, other: 0, total: 0 });
+        }
+        let monthData = monthlyAggregateMap.get(monthKey);
+        monthData[t.category] += t.amount;
+        monthData.total += t.amount;
+        monthlyAggregateMap.set(monthKey, monthData);
+      }
+
+      // sort months
+      allMonthsList = Array.from(monthlyAggregateMap.keys()).sort();
+      const monthsCount = allMonthsList.length;
+      document.getElementById("monthsCount").innerText = monthsCount;
+      document.getElementById("totalSpent").innerHTML = formatKES(totalSpentOverall);
+
+      // top category overall
+      let topCat = "—";
+      let maxVal = 0;
+      for (let [cat, val] of Object.entries(categoryTotalsOverall)) {
+        if (val > maxVal) { maxVal = val; topCat = cat.charAt(0).toUpperCase() + cat.slice(1); }
+      }
+      document.getElementById("topCategory").innerText = topCat !== "—" ? `${topCat} · ${formatKES(maxVal)}` : "—";
+
+      // render monthly insights table
+      renderMonthlyTable();
+
+      // populate month selector
+      const monthSelect = document.getElementById("monthSelect");
+      monthSelect.innerHTML = '<option value="">-- Choose month --</option>';
+      for (let month of allMonthsList) {
+        const [year, monthNum] = month.split('-');
+        const display = new Date(year, parseInt(monthNum)-1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        monthSelect.innerHTML += `<option value="${month}">${display}</option>`;
+      }
+      if (allMonthsList.length > 0) {
+        monthSelect.value = allMonthsList[allMonthsList.length-1]; // latest month
+        currentSelectedMonth = allMonthsList[allMonthsList.length-1];
+        updatePieChartForMonth(currentSelectedMonth);
+        renderBudgetSuggestions(currentSelectedMonth);
+      } else {
+        if (pieChart) pieChart.destroy();
+        pieChart = null;
+      }
+
+      // render transactions table
+      renderTransactionsTable();
+    }
+
+    function renderMonthlyTable() {
+      const tbody = document.getElementById("monthlyTableBody");
+      if (!allMonthsList.length) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-gray-400">No monthly data available</td></tr>`;
+        return;
+      }
+      let rows = "";
+      for (let month of allMonthsList) {
+        const data = monthlyAggregateMap.get(month);
+        const [year, monthNum] = month.split('-');
+        const monthName = new Date(year, parseInt(monthNum)-1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        rows += `<tr class="border-b border-gray-100 hover:bg-gray-50 transition">
+          <td class="py-2 font-medium">${monthName}</td>
+          <td class="text-right text-amber-700">${formatKES(data.food || 0)}</td>
+          <td class="text-right text-sky-700">${formatKES(data.transport || 0)}</td>
+          <td class="text-right text-indigo-700">${formatKES(data.bills || 0)}</td>
+          <td class="text-right text-gray-600">${formatKES(data.other || 0)}</td>
+          <td class="text-right font-semibold">${formatKES(data.total || 0)}</td>
+        </tr>`;
+      }
+      tbody.innerHTML = rows;
+    }
+
+    function renderTransactionsTable() {
+      const tbody = document.getElementById("transactionsTableBody");
+      const emptyMsg = document.getElementById("emptyTransactionMsg");
+      if (!rawTransactions.length) {
+        tbody.innerHTML = '';
+        emptyMsg.classList.remove("hidden");
+        return;
+      }
+      emptyMsg.classList.add("hidden");
+      let html = "";
+      for (let t of rawTransactions.slice().reverse()) { // show latest first
+        const catIcon = getCategoryIcon(t.category);
+        html += `<tr class="border-b border-gray-100">
+          <td class="py-2 whitespace-nowrap">${t.date}</td>
+          <td class="py-2 max-w-xs truncate" title="${escapeHtml(t.description)}">${escapeHtml(t.description.substring(0, 55))}</td>
+          <td class="py-2 text-right font-mono">${formatKES(t.amount)}</td>
+          <td class="py-2"><span class="inline-flex items-center gap-1 text-xs bg-gray-100 px-2 py-1 rounded-full">${catIcon} ${t.category.charAt(0).toUpperCase() + t.category.slice(1)}</span></td>
+        </tr>`;
+      }
+      tbody.innerHTML = html;
+    }
+
+    function getCategoryIcon(cat) {
+      if (cat === 'food') return '🍔';
+      if (cat === 'transport') return '🚗';
+      if (cat === 'bills') return '⚡';
+      return '📦';
+    }
+
+    function updatePieChartForMonth(monthKey) {
+      if (!monthKey || !monthlyAggregateMap.has(monthKey)) {
+        if (pieChart) { pieChart.destroy(); pieChart = null; }
+        return;
+      }
+      const data = monthlyAggregateMap.get(monthKey);
+      const categories = ['food', 'transport', 'bills', 'other'];
+      const values = [data.food || 0, data.transport || 0, data.bills || 0, data.other || 0];
+      const labels = ['🍔 Food', '🚗 Transport', '⚡ Bills', '📦 Other'];
+      const colors = ['#F97316', '#0EA5E9', '#8B5CF6', '#94A3B8'];
+
+      const ctx = document.getElementById('categoryPieChart').getContext('2d');
+      if (pieChart) pieChart.destroy();
+      pieChart = new Chart(ctx, {
+        type: 'pie',
+        data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 0, borderRadius: 8 }] },
+        options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } } }
+      });
+    }
+
+    // dynamic budget suggestions based on selected month (or global if month lacks data)
+    function renderBudgetSuggestions(monthKey) {
+      if (!monthKey || !monthlyAggregateMap.has(monthKey)) {
+        document.getElementById("budgetSuggestionsContainer").innerHTML = '<div class="text-gray-400 text-center py-3">Select a month to see budget tips</div>';
+        return;
+      }
+      const monthData = monthlyAggregateMap.get(monthKey);
+      const total = monthData.total;
+      if (total === 0) {
+        document.getElementById("budgetSuggestionsContainer").innerHTML = '<div class="text-gray-400 text-center py-3">No spending this month</div>';
+        return;
+      }
+
+      const foodPct = (monthData.food / total) * 100;
+      const transportPct = (monthData.transport / total) * 100;
+      const billsPct = (monthData.bills / total) * 100;
+
+      let suggestions = [];
+
+      // smart rules (fintech style)
+      if (foodPct > 40) {
+        suggestions.push({ icon: "🍽️", text: `Food takes ${Math.round(foodPct)}% of your spending. Try meal prepping or local markets to save ~15%.` });
+      } else if (foodPct > 25) {
+        suggestions.push({ icon: "🥗", text: `Food spending is balanced (${Math.round(foodPct)}%). Keep tracking portion sizes.` });
+      } else {
+        suggestions.push({ icon: "✅", text: `Great! Food is only ${Math.round(foodPct)}% of expenses.` });
+      }
+
+      if (transportPct > 25) {
+        suggestions.push({ icon: "🚌", text: `High transport (${Math.round(transportPct)}%). Consider carpool, weekly fuel cap, or using matatus.` });
+      } else if (transportPct > 12) {
+        suggestions.push({ icon: "🚗", text: `Transport is moderate (${Math.round(transportPct)}%). Optimizing trips could save extra KES.` });
+      } else {
+        suggestions.push({ icon: "🚶", text: `Low transport cost. Keep up the efficiency!` });
+      }
+
+      if (billsPct > 35) {
+        suggestions.push({ icon: "💡", text: `Bills are ${Math.round(billsPct)}% of expenses. Audit subscriptions & switch to energy-saving bulbs.` });
+      } else {
+        suggestions.push({ icon: "📉", text: `Bill ratio is healthy (${Math.round(billsPct)}%). Consider investing savings.` });
+      }
+
+      // extra tip: compare with previous month if exists
+      const monthIndex = allMonthsList.indexOf(monthKey);
+      if (monthIndex > 0) {
+        const prevMonth = allMonthsList[monthIndex-1];
+        const prevData = monthlyAggregateMap.get(prevMonth);
+        const diff = total - prevData.total;
+        if (diff > 0 && diff > prevData.total * 0.15) {
+          suggestions.push({ icon: "📈", text: `Spending increased by ${formatKES(diff)} vs last month. Review large transactions.` });
+        } else if (diff < -prevData.total * 0.1) {
+          suggestions.push({ icon: "🎉", text: `Great! You spent ${formatKES(-diff)} less than previous month. Keep the momentum.` });
+        }
+      }
+
+      // custom budget limit suggestion based on category average
+      let allCategories = ['food', 'transport', 'bills'];
+      for (let cat of allCategories) {
+        let spent = monthData[cat];
+        if (spent > 0) {
+          let suggestedCap = spent * 0.85;
+          if (cat === 'food' && spent > 8000) suggestedCap = 7500;
+          if (cat === 'transport' && spent > 5000) suggestedCap = 4500;
+          if (spent > 10000 && cat !== 'other') {
+            suggestions.push({ icon: "🎯", text: `Set monthly ${cat} budget ≈ ${formatKES(Math.round(suggestedCap))} to save ${formatKES(Math.round(spent - suggestedCap))}.` });
+          }
+        }
+      }
+
+      // unique suggestions
+      const unique = suggestions.slice(0, 4);
+      const html = unique.map(s => `<div class="flex gap-2 items-start bg-gray-50 p-2 rounded-xl"><span class="text-lg">${s.icon}</span><span class="text-gray-700 text-sm">${s.text}</span></div>`).join('');
+      document.getElementById("budgetSuggestionsContainer").innerHTML = html || '<div class="text-gray-500 text-sm">✨ Track consistently for smarter budgets</div>';
+    }
+
+    // ---------- CSV PARSING (M-Pesa style: Date, Description, Debit, Credit, Balance) ----------
+    function parseCSVAndExtractSpending(csvString) {
+      const result = Papa.parse(csvString, { header: true, skipEmptyLines: true });
+      if (result.errors && result.errors.length) console.warn("Parse warnings", result.errors);
+      const dataRows = result.data;
+      if (!dataRows.length) throw new Error("CSV is empty");
+
+      // detect columns (case-insensitive matching)
+      const headers = Object.keys(dataRows[0]);
+      const findCol = (possibleNames) => headers.find(h => possibleNames.some(name => h.toLowerCase().trim() === name.toLowerCase()));
+      const dateCol = findCol(['date', 'transaction date', 'completion time', 'Date']);
+      const descCol = findCol(['description', 'details', 'transaction details', 'Description']);
+      const debitCol = findCol(['debit', 'withdrawn', 'amount out', 'Debit (KES)']);
+      const creditCol = findCol(['credit', 'paid in', 'amount in', 'Credit (KES)']);
+      
+      if (!dateCol || !descCol) throw new Error("CSV must contain Date and Description columns. Download sample format.");
+      
+      let transactions = [];
+      for (let row of dataRows) {
+        let dateRaw = row[dateCol] || "";
+        let description = row[descCol] || "";
+        let debitVal = 0;
+        if (debitCol && row[debitCol] !== undefined && row[debitCol] !== "") debitVal = parseFloat(String(row[debitCol]).replace(/,/g, ''));
+        let creditVal = 0;
+        if (creditCol && row[creditCol] !== undefined && row[creditCol] !== "") creditVal = parseFloat(String(row[creditCol]).replace(/,/g, ''));
+        
+        let amount = 0;
+        if (!isNaN(debitVal) && debitVal > 0) amount = debitVal;
+        else if (!isNaN(creditVal) && creditVal > 0) continue; // ignore income (credit)
+        else if (!isNaN(debitVal) && debitVal < 0) amount = Math.abs(debitVal);
+        else continue;
+        
+        if (amount === 0) continue;
+        
+        let formattedDate = "";
+        try {
+          let d = new Date(dateRaw);
+          if (!isNaN(d.getTime())) formattedDate = d.toISOString().slice(0,10);
+          else formattedDate = dateRaw.slice(0,10);
+        } catch(e) { formattedDate = dateRaw; }
+        
+        const category = categorizeTransaction(description);
+        transactions.push({
+          date: formattedDate,
+          description: description.trim() || "Transaction",
+          amount: amount,
+          category: category
+        });
+      }
+      return transactions;
+    }
+
+    // load from uploaded file
+    function handleFileUpload(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const transactions = parseCSVAndExtractSpending(e.target.result);
+          if (transactions.length === 0) {
+            document.getElementById("uploadStatus").innerHTML = '<span class="text-amber-600">⚠️ No outgoing expenses found in CSV. Check format.</span>';
+            return;
+          }
+          processAndRender(transactions);
+          document.getElementById("uploadStatus").innerHTML = '<span class="text-green-600">✅ Upload success! Analyzed '+transactions.length+' expenses.</span>';
+          setTimeout(() => document.getElementById("uploadStatus").innerHTML = '', 3000);
+        } catch (err) {
+          document.getElementById("uploadStatus").innerHTML = `<span class="text-red-500">❌ Error: ${err.message}</span>`;
+          console.error(err);
+        }
+      };
+      reader.readAsText(file, "UTF-8");
+    }
+
+    // ---------- SAMPLE DATA (realistic M-Pesa style) ----------
+    function loadSampleData() {
+      const sampleTransactions = [
+        { date: "2025-01-05", description: "Naivas Supermarket - CBD", amount: 3450, category: "food" },
+        { date: "2025-01-12", description: "Uber ride to Westlands", amount: 680, category: "transport" },
+        { date: "2025-01-18", description: "KPLC Electricity Token", amount: 2100, category: "bills" },
+        { date: "2025-01-25", description: "Quickmart Groceries", amount: 2350, category: "food" },
+        { date: "2025-02-02", description: "Fuel - TotalEnergies", amount: 4200, category: "transport" },
+        { date: "2025-02-10", description: "Safaricom Home Fibre", amount: 3500, category: "bills" },
+        { date: "2025-02-14", description: "Dinner at Java House", amount: 2750, category: "food" },
+        { date: "2025-02-22", description: "Bolt taxi to Airport", amount: 1250, category: "transport" },
+        { date: "2025-03-01", description: "Water Bill - Nairobi Water", amount: 890, category: "bills" },
+        { date: "2025-03-07", description: "Carrefour Hypermarket", amount: 5130, category: "food" },
+        { date: "2025-03-15", description: "Netflix Subscription", amount: 1100, category: "bills" },
+        { date: "2025-03-20", description: "Matatu fare & parking", amount: 450, category: "transport" },
+        { date: "2025-03-25", description: "Pharmacy & Health", amount: 2300, category: "other" }
+      ];
+      processAndRender(sampleTransactions);
+      document.getElementById("uploadStatus").innerHTML = '<span class="text-teal-600">✨ Demo data loaded — smart insights ready</span>';
+      setTimeout(() => document.getElementById("uploadStatus").innerHTML = '', 2500);
+    }
+
+    // generate sample CSV download
+    function downloadSampleCSV() {
+      const headers = ["Date", "Description", "Debit (KES)", "Credit (KES)", "Balance"];
+      const rows = [
+        ["2025-01-05","Naivas Supermarket - CBD","3450","","12500"],
+        ["2025-01-12","Uber ride to Westlands","680","","11820"],
+        ["2025-01-18","KPLC Electricity Token","2100","","9720"],
+        ["2025-02-02","Fuel - TotalEnergies","4200","","5500"],
+        ["2025-02-10","Safaricom Home Fibre","3500","","2000"],
+        ["2025-02-14","Bolt taxi","1250","","750"],
+        ["2025-03-01","Netflix & Spotify","1500","","-750"],
+        ["2025-03-07","Carrefour Groceries","5130","","-5880"]
+      ];
+      let csvContent = headers.join(",") + "\n" + rows.map(r => r.join(",")).join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "mpesa_sample_export.csv";
+      link.click();
+      URL.revokeObjectURL(link.href);
+    }
+
+    // event binding + month select listener
+    document.getElementById("csvUpload").addEventListener("change", (e) => {
+      if (e.target.files.length) handleFileUpload(e.target.files[0]);
+    });
+    document.getElementById("loadDemoBtn").addEventListener("click", loadSampleData);
+    document.getElementById("downloadSampleBtn").addEventListener("click", downloadSampleCSV);
+    document.getElementById("monthSelect").addEventListener("change", (e) => {
+      const month = e.target.value;
+      if (month && monthlyAggregateMap.has(month)) {
+        currentSelectedMonth = month;
+        updatePieChartForMonth(month);
+        renderBudgetSuggestions(month);
+      }
+    });
+    
+    function escapeHtml(str) { if(!str) return ''; return str.replace(/[&<>]/g, function(m){if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m;}); }
+    
+    // init: show sample data for premium first-glance
+    loadSampleData();
+  </script>
+</body>
+</html>
